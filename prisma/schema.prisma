@@ -1,0 +1,83 @@
+// Prisma Schema for Order Processing Backend
+// Database Provider: PostgreSQL (database: orderprocessing)
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Enum defining the lifecycle states of an Order
+enum OrderStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  CANCELLED
+}
+
+// User Entity - Represents customers placing orders
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  name      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relational link: One User can have Many Orders (1:N)
+  orders    Order[]
+
+  @@map("users")
+}
+
+// Product Entity - Represents catalog items available for purchase
+model Product {
+  id          String      @id @default(uuid())
+  name        String
+  price       Float
+  stock       Int
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  // Relational link: One Product can appear in Many OrderItems (1:N)
+  orderItems  OrderItem[]
+
+  @@map("products")
+}
+
+// Order Entity - Represents a customer checkout purchase
+model Order {
+  id        String      @id @default(uuid())
+  userId    String
+  status    OrderStatus @default(PENDING)
+  total     Float
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+
+  // Relational links
+  user       User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  orderItems OrderItem[]
+
+  @@index([userId])
+  @@index([status])
+  @@map("orders")
+}
+
+// OrderItem Entity - Junction table connecting Order and Product with quantity & price snapshot
+model OrderItem {
+  id        String   @id @default(uuid())
+  orderId   String
+  productId String
+  quantity  Int
+  price     Float
+
+  // Relational links
+  order     Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product   Product @relation(fields: [productId], references: [id], onDelete: Restrict)
+
+  @@index([orderId])
+  @@index([productId])
+  @@map("order_items")
+}
