@@ -2,22 +2,6 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { createOrderSchema } from '@/lib/validations';
 
-/**
- * ⚠️ DEMO / ANTI-PATTERN ENDPOINT: SYNCHRONOUS ORDER CREATION
- * 
- * Objective: Demonstrate why route handlers should NOT perform slow or 
- * non-essential operations synchronously before returning an HTTP response.
- * 
- * Flow:
- * 1. Validate request body
- * 2. Save order to PostgreSQL database via Prisma
- * 3. [BLOCKING] Simulate sending confirmation email (1000ms delay)
- * 4. [BLOCKING] Simulate generating invoice PDF (1200ms delay)
- * 5. [BLOCKING] Simulate recording analytics event (500ms delay)
- * 6. [BLOCKING] Simulate updating external inventory (500ms delay)
- * 7. Return HTTP 200 OK after ~3.2 - 3.5 seconds!
- */
-
 // Helper function to simulate artificial I/O blocking delay
 const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -25,7 +9,19 @@ export async function POST(request: Request) {
   const startTime = Date.now();
 
   try {
-    const body = await request.json();
+    let body;
+    try {
+      body = await request.json();
+    } catch {
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'Validation Error',
+          details: 'Request body must be a valid JSON object containing userId and items.',
+        },
+        { status: 400 }
+      );
+    }
 
     // Step 1: Validate input payload
     const validationResult = createOrderSchema.safeParse(body);
@@ -63,12 +59,6 @@ export async function POST(request: Request) {
         orderItems: true,
       },
     });
-
-    // ------------------------------------------------------------------------
-    // 🛑 BLOCKING SYNCHRONOUS OPERATIONS (ANTI-PATTERN)
-    // In production, keeping the HTTP socket open for external services 
-    // causes high latency, poor UX, and connection pool exhaustion.
-    // ------------------------------------------------------------------------
 
     console.log(`[SYNC ENDPOINT] Order ${order.id} saved in DB. Starting synchronous background tasks...`);
 

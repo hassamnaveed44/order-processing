@@ -3,23 +3,23 @@ import { prisma } from '@/lib/prisma';
 import { createOrderSchema } from '@/lib/validations';
 import { enqueueOrderProcessingJob } from '@/lib/queue';
 
-/**
- * ⚡ OPTIMIZED ENDPOINT: ASYNCHRONOUS ORDER CREATION
- * 
- * Objective: Demonstrate production-grade async request handling.
- * Route handlers must NOT execute slow background operations before responding.
- * 
- * Flow:
- * 1. Validate request body synchronously
- * 2. Save Order & OrderItems to PostgreSQL database synchronously
- * 3. Enqueue job payload to BullMQ (Redis stream) in ~5ms
- * 4. Return HTTP 202 Accepted IMMEDIATELY (< 50ms total response time!)
- */
 export async function POST(request: Request) {
   const startTime = Date.now();
 
   try {
-    const body = await request.json();
+    let body;
+    try {
+      body = await request.json();
+    } catch {
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'Validation Error',
+          details: 'Request body must be a valid JSON object containing userId and items.',
+        },
+        { status: 400 }
+      );
+    }
 
     // Step 1: Validate payload schema synchronously
     const validationResult = createOrderSchema.safeParse(body);
@@ -58,7 +58,7 @@ export async function POST(request: Request) {
       },
     });
 
-    // Step 3: Offload non-essential work (emails, PDF invoice, analytics, inventory) to BullMQ
+    // Step 3: Offload non-essential work to BullMQ / queue
     await enqueueOrderProcessingJob({
       orderId: order.id,
       userId: order.userId,
@@ -85,7 +85,7 @@ export async function POST(request: Request) {
           totalResponseTimeMs: executionTimeMs,
         },
       },
-      { status: 202 } // HTTP 202 Accepted
+      { status: 202 }
     );
   } catch (error: any) {
     console.error('[ASYNC ENDPOINT ERROR]:', error);
@@ -100,26 +100,10 @@ export async function POST(request: Request) {
   }
 }
 
-/**
- * 📊 OPTIMIZED DATABASE READ ENDPOINT: GET /api/orders
- * 
- * Objective: Demonstrate database query optimization.
- * 
- * Guidelines Enforced:
- * 1. ZERO database queries inside loops (Eliminates N+1 query problem completely)
- * 2. Uses Prisma relational join (`user: { select: { name: true } }`) in 1 SQL query
- * 3. Uses strict field projection (`select`) to return ONLY required fields:
- *    - Order ID
- *    - Status
- *    - Total
- *    - Customer Name (User relation)
- *    - Creation Date
- */
 export async function GET() {
   const startTime = Date.now();
 
   try {
-    // Execute single query with explicit field selection & relational join
     const orders = await prisma.order.findMany({
       select: {
         id: true,
@@ -135,10 +119,9 @@ export async function GET() {
       orderBy: {
         createdAt: 'desc',
       },
-      take: 100, // Reasonable pagination limit
+      take: 100,
     });
 
-    // Map payload into clean response structure
     const formattedOrders = orders.map((order) => ({
       orderId: order.id,
       status: order.status,
