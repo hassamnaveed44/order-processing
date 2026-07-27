@@ -5,7 +5,7 @@ dotenv.config();
 
 export default defineConfig({
   schema: 'prisma/schema.prisma',
-  migrate: {
-    datasourceUrl: process.env.DATABASE_URL || 'postgresql://postgres:postgres@localhost:5432/orderprocessing?schema=public',
+  datasource: {
+    url: process.env.DATABASE_URL || 'postgresql://postgres:postgres@localhost:5432/orderprocessing?schema=public',
   },
 });
