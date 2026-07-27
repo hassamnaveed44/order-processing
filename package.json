@@ -1,0 +1,26 @@
+{
+  "name": "order-processing",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint",
+    "worker": "tsx src/workers/orderWorker.ts",
+    "seed": "prisma db seed",
+    "benchmark": "tsx scripts/benchmark.ts"
+  },
+  "prisma": {
+    "seed": "tsx prisma/seed.ts"
+  },
+  "dependencies": {
+    "@prisma/client": "^7.9.0",
+    "bullmq": "^5.81.2",
+    "ioredis": "^5.11.1",
+    "next": "^16.2.12",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8",
+    "zod": "^4.4.3"
+  }
+}
